@@ -31,22 +31,15 @@ class UserController extends Controller
             'password' => $request->password,
         ]))
             return response()->json([
-                'status' => '401',
-                'result' => [
-                    'message' => 'ایمیل یا رمز عبور نادرست است',
-                    'lang'    => 'en'
-                ]
-            ]);
+                'message' => 'ایمیل یا رمز عبور نادرست است',
+            ], 401);
 
         $user        = Auth::user();
         $accessToken = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
-            'status' => '200',
-            'result' => [
-                'token' => $accessToken,
-            ]
-        ]);
+            'token' => $accessToken,
+        ], 200);
 
     }
 
@@ -58,10 +51,7 @@ class UserController extends Controller
             ->first();
 
         return response()->json([
-            'status' => '200',
-            'result' => [
-                'token' => !($userGetPackage == null)
-            ]
-        ]);
+            'status' => !($userGetPackage == null)
+        ], 200);
     }
 }

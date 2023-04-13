@@ -21,5 +21,7 @@ Route::post('login', [UserController::class, 'login']);
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('package/{package_id}/status', [UserController::class, 'status']);
     Route::get('package/{package}/order', [OrderController::class, 'order']);
+    Route::get('order/{order}/pay', [OrderController::class, 'pay']);
+    Route::any('payment/verify', [OrderController::class, 'verify']);
 });
 
