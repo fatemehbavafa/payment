@@ -5,12 +5,16 @@ namespace App\Http\Controllers;
 use App\Models\Order;
 use App\Models\Package;
 use App\Models\Transaction;
-use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use PHPUnit\Util\Exception;
 use Shetabit\Multipay\Invoice;
 use Shetabit\Multipay\Payment;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Auth;
+use Shetabit\Payment\Facade\Payment as PaymentFacade;
+use Shetabit\Multipay\Exceptions\InvoiceNotFoundException;
+use Shetabit\Multipay\Exceptions\InvalidPaymentException;
 
 class OrderController extends Controller
 {
@@ -33,13 +37,13 @@ class OrderController extends Controller
         $invoice->amount((int)$order->amount);
         $uuid = (string)Str::uuid();
 
-        return Payment::callbackUrl(action([self::class, 'verify'], ['uuid' => $uuid]))
+        return PaymentFacade::via('zarinpal')->callbackUrl(action([self::class, 'verify'], ['uuid' => $uuid]))
             ->purchase(
                 $invoice,
-                function ($driver) use ($invoice, $uuid, $order) {
+                function ($driver, $transactionId) use ($invoice, $uuid, $order) {
                     Transaction::create([
                         'uuid'      => $uuid,
-                        'authority' => $invoice->getTransactionId(),
+                        'authority' => $transactionId,
                         'amount'    => $order->amount,
                         'user_id'   => $order->user_id,
                         'order_id'  => $order->id,
@@ -49,6 +53,9 @@ class OrderController extends Controller
 
     }
 
+    /**
+     * @throws InvoiceNotFoundException
+     */
     public function verify()
     {
         $transaction = Transaction::where('uuid', request('uuid'))->first();
@@ -57,14 +64,22 @@ class OrderController extends Controller
                 'message' => 'تراکنش یافت نشد'
             ], 422);
         }
-
+        $payment = new Payment(config('payment'));
         try {
-            $receipt                = Payment::amount($transaction->amount)->transactionId((string)$transaction->authority)->verify();
-            $transaction->reference = $receipt->getReferenceId();
-            $transaction->status    = 1;
-            $transaction->save();
-        } catch (\Exception $exception) {
-            throw new Exception('مشکل در انجام تراکنش');
+            $receipt = $payment->via('zarinpal')->amount($transaction->amount)->transactionId((string)$transaction->authority)->verify();
+            DB::beginTransaction();
+            $transaction->update([
+                'reference' => $receipt->getReferenceId(),
+                'status'    => 1
+            ]);
+            $transaction->order()->update([
+                'paid' => true
+            ]);
+            DB::commit();
+            dd('yay');
+        } catch (InvalidPaymentException $exception) {
+            DB::rollBack();
+            throw new Exception($exception->getMessage() . '. ' . $exception->getCode());
         }
     }
 
