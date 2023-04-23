@@ -76,7 +76,6 @@ class OrderController extends Controller
                 'paid' => true
             ]);
             DB::commit();
-            dd('yay');
         } catch (InvalidPaymentException $exception) {
             DB::rollBack();
             throw new Exception($exception->getMessage() . '. ' . $exception->getCode());
